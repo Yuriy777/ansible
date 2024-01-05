@@ -46,10 +46,10 @@
 
   - name: Configure DB connection on VM C
     lineinfile:
-      path: /etc/wordpress/config-192.168.102.2.php
-      line: "<?php define('DB_HOST', '192.168.101.2:3306'); ?>"
+      path: /etc/wordpress/config-192.168.102.122.php
+      line: "<?php define('DB_HOST', '192.168.101.122:3306'); ?>"
     delegate_to: VM_B
-    when: "'192.168.100.4' in inventory_hostname"
+    when: "'192.168.100.144' in inventory_hostname"
 
   - name: Allow DB access on VM B
-    shell: vagrant ssh -c "sudo iptables -A INPUT -s 192.168.100.4 -j ACCEPT" VM_B
+    shell: vagrant ssh -c "sudo iptables -A INPUT -s 192.168.100.144 -j ACCEPT" VM_B
