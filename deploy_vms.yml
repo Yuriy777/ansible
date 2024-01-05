@@ -1,0 +1,55 @@
+- name: Deploy Virtual Machines
+  hosts: localhost
+  gather_facts: false
+  tasks:
+  - name: Create VMs with Ubuntu OS using Vagrant
+    shell: vagrant up --provider virtualbox
+    args:
+      chdir: ./Vagrantfile
+
+  - name: Configure network interfaces for VM A
+    shell: vagrant ssh -c "sudo ip addr add 172.16.0.2/24 dev en0 && sudo ip addr add 192.168.100.122/24 dev en1" VM_A
+
+  - name: Configure network interfaces for VM B
+    shell: vagrant ssh -c "sudo ip addr add 192.168.101.133/24 dev en0 && sudo ip addr add 192.168.100.133/24 dev en1" VM_B
+
+  - name: Configure network interfaces for VM C
+    shell: vagrant ssh -c "sudo ip addr add 192.168.102.144/24 dev en0 && sudo ip addr add 192.168.100.144/24 dev en1" VM_C
+
+- name: Fulfill Conditions for VMs
+  hosts: all
+  become: true
+  tasks:
+  - name: Add entries to /etc/hosts on VM A
+    lineinfile:
+      path: /etc/hosts
+      line: "{{ hostvars['VM_A'].ansible_host }} mysyte.local"
+    when: "'172.16.0.2' in inventory_hostname"
+
+  - name: Configure Internet access on VM A
+    shell: vagrant ssh -c "sudo iptables -A OUTPUT -j ACCEPT" VM_A
+
+  - name: Configure Nginx proxy for WordPress on VM A
+    shell: vagrant ssh -c "sudo apt-get update && sudo apt-get install -y nginx && sudo service nginx start" VM_A
+
+  - name: Restrict Internet access on VM B
+    shell: vagrant ssh -c "sudo iptables -A OUTPUT -j DROP" VM_B
+
+  - name: Install MySQL on VM B
+    shell: vagrant ssh -c "sudo apt-get update && sudo apt-get install -y mysql-server" VM_B
+
+  - name: Configure Internet access on VM C
+    shell: vagrant ssh -c "sudo iptables -A OUTPUT -j ACCEPT" VM_C
+
+  - name: Install Apache and WordPress on VM C
+    shell: vagrant ssh -c "sudo apt-get update && sudo apt-get install -y apache2 && sudo apt-get install -y wordpress && sudo service apache2 start" VM_C
+
+  - name: Configure DB connection on VM C
+    lineinfile:
+      path: /etc/wordpress/config-192.168.102.2.php
+      line: "<?php define('DB_HOST', '192.168.101.2:3306'); ?>"
+    delegate_to: VM_B
+    when: "'192.168.100.4' in inventory_hostname"
+
+  - name: Allow DB access on VM B
+    shell: vagrant ssh -c "sudo iptables -A INPUT -s 192.168.100.4 -j ACCEPT" VM_B
